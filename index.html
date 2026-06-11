@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Matrix City Movement Starter</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div class="hud" aria-label="Player status">
+      <div class="brand">City Movement Prototype</div>
+      <div class="health-row">
+        <span>Health</span>
+        <i class="health-track"><b id="player-health-bar"></b></i>
+        <small id="player-health-text">100</small>
+      </div>
+      <div class="meter">
+        <span>Focus</span>
+        <i id="focus-bar"></i>
+      </div>
+      <div class="meter">
+        <span>Dash</span>
+        <i id="dash-bar"></i>
+      </div>
+      <div class="readout">
+        <b id="move-mode">Grounded</b>
+        <small id="speed-readout">0.0 m/s</small>
+      </div>
+      <div class="weapon-readout">
+        <span id="weapon-name">Unarmed</span>
+        <small id="weapon-state">1 to equip</small>
+      </div>
+    </div>
+    <div class="enemy-health" id="enemy-health" aria-label="Enemy health">
+      <span id="target-health-label">Enemy</span>
+      <i><b id="enemy-health-bar"></b></i>
+    </div>
+    <div class="reticle" aria-hidden="true"></div>
+    <div class="counter-prompt" id="counter-prompt" aria-hidden="true">
+      <i class="counter-ring"></i>
+      <b id="counter-key">Q</b>
+      <span id="counter-action">GRAB</span>
+    </div>
+    <div class="sniper" aria-hidden="true">
+      <i class="sniper-scope"></i>
+      <i class="sniper-mount"></i>
+      <i class="sniper-body"></i>
+      <i class="sniper-barrel"></i>
+      <i class="sniper-muzzle"></i>
+      <i class="sniper-stock"></i>
+      <i class="sniper-grip"></i>
+      <i class="sniper-magazine"></i>
+    </div>
+    <div class="grapple-device" aria-hidden="true">
+      <i class="grapple-coil"></i>
+      <i class="grapple-gauge"></i>
+      <i class="grapple-body"></i>
+      <i class="grapple-prongs"></i>
+      <i class="grapple-barrel"></i>
+      <i class="grapple-grip"></i>
+      <i class="grapple-trigger"></i>
+    </div>
+    <div class="motorcycle-view" aria-hidden="true">
+      <i class="bike-handlebar"></i>
+      <i class="bike-left-grip"></i>
+      <i class="bike-right-grip"></i>
+      <i class="bike-dashboard"></i>
+      <i class="bike-windscreen"></i>
+    </div>
+    <div class="scope-view" aria-hidden="true">
+      <i class="scope-ring"></i>
+      <i class="scope-horizontal"></i>
+      <i class="scope-vertical"></i>
+      <i class="scope-center"></i>
+    </div>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="start" id="start-panel">
+      <div class="match-panel">
+        <strong>Enter City</strong>
+        <button id="start-button" type="button">Play Solo</button>
+        <button id="host-match" type="button">Host Match</button>
+        <div class="join-row">
+          <input id="match-code" maxlength="5" autocomplete="off" spellcheck="false" aria-label="Match code" placeholder="CODE" />
+          <button id="join-match" type="button">Join</button>
+        </div>
+        <small id="match-status">Two-player rooms use a short match code.</small>
+      </div>
+    </div>
+    <div class="room-status" id="room-status" hidden>
+      <span id="room-label">Offline</span>
+      <button id="copy-room" type="button" hidden>Copy code</button>
+    </div>
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js" defer></script>
+    <script src="./main.js" defer></script>
+    <script src="./multiplayer.js" defer></script>
+  </body>
+</html>
