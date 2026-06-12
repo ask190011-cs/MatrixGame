@@ -42,6 +42,8 @@
       health: player.health,
       blocking: player.blocking,
       kicking: player.kickTime > 0,
+      kickProgress: player.kickTime > 0 ? 1 - player.kickTime / 0.48 : 0,
+      grabbed: player.pvpGrabbed,
       vaulting: player.vaulting,
       motorcycle: player.motorcycle,
       sniperEquipped: player.sniperEquipped,
@@ -54,6 +56,9 @@
   }
 
   function applyRemoteState(remote) {
+    if (remote.kicking && remote.kickProgress >= 0.18 && remote.kickProgress <= 0.92) {
+      game.world.multiplayer.remoteKickCatchUntil = performance.now() + 220;
+    }
     if (!game.world.remotePlayer) game.world.remotePlayer = remote;
     else Object.assign(game.world.remotePlayer, remote);
   }
@@ -72,13 +77,21 @@
         waveTimer: 0,
         owner: "remote-player",
       });
-    } else if (message.type === "opponent-damage") {
-      game.damagePlayer(message.amount);
-      if (message.direction) {
-        game.player.velocity.x += message.direction.x * 7;
-        game.player.velocity.z += message.direction.z * 7;
-        game.player.velocity.y = Math.max(game.player.velocity.y, 2.4);
-      }
+    } else if (message.type === "kick-attempt") {
+      game.handleIncomingKick(message);
+    } else if (message.type === "kick-caught") {
+      game.player.kickTime = 0;
+      game.player.kickHit = true;
+      game.player.pvpGrabbed = true;
+      game.player.pvpGrabbedTime = 2.6;
+      game.player.velocity = { x: 0, y: 0, z: 0 };
+    } else if (message.type === "kick-throw") {
+      game.player.pvpGrabbed = false;
+      game.player.pvpGrabbedTime = 0;
+      game.damagePlayer(18);
+      game.player.velocity.x = message.direction.x * 12;
+      game.player.velocity.z = message.direction.z * 12;
+      game.player.velocity.y = 5.8;
     }
   }
 
@@ -118,6 +131,8 @@
   function disconnect(message = "Other player left") {
     game.world.multiplayer.connected = false;
     game.world.remotePlayer = null;
+    game.world.multiplayer.caughtOpponent = false;
+    game.player.pvpGrabbed = false;
     connection = null;
     setRoomLabel(message, game.world.multiplayer.isHost);
   }
@@ -169,7 +184,9 @@
     setTimeout(() => { copyButton.textContent = "Copy code"; }, 1200);
   });
   window.addEventListener("matrix-shot", (event) => send({ type: "shot", ...event.detail }));
-  window.addEventListener("matrix-opponent-damage", (event) => send({ type: "opponent-damage", ...event.detail }));
+  window.addEventListener("matrix-kick-attempt", (event) => send({ type: "kick-attempt", ...event.detail }));
+  window.addEventListener("matrix-kick-caught", () => send({ type: "kick-caught" }));
+  window.addEventListener("matrix-kick-throw", (event) => send({ type: "kick-throw", ...event.detail }));
 
   const linkedRoom = cleanCode(new URLSearchParams(location.search).get("room") || "");
   if (linkedRoom) {

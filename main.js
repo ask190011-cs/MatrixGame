@@ -60,6 +60,8 @@ const player = {
   kickHit: false,
   blocking: false,
   caughtBulletTime: 0,
+  pvpGrabbed: false,
+  pvpGrabbedTime: 0,
   cameraJerkTime: 0,
   cameraJerkDuration: 0.58,
   cameraJerkYaw: 0,
@@ -93,7 +95,14 @@ const world = {
   shockwaves: [],
   lampposts: [],
   remotePlayer: null,
-  multiplayer: { connected: false, isHost: false, spawnPosition: vec(0, 0, 8) },
+  multiplayer: {
+    connected: false,
+    isHost: false,
+    spawnPosition: vec(0, 0, 8),
+    caughtOpponent: false,
+    caughtOpponentTime: 0,
+    remoteKickCatchUntil: 0,
+  },
   enemy: {
     position: vec(0, 0, -9),
     spawnPosition: vec(0, 0, -9),
@@ -137,7 +146,7 @@ window.__gameDebug = {
   }),
 };
 
-window.__matrixGame = { canvas, player, world, camera, pointer, palette, damagePlayer };
+window.__matrixGame = { canvas, player, world, camera, pointer, palette, damagePlayer, handleIncomingKick };
 
 startButton.addEventListener("click", () => {
   startPanel.classList.add("hidden");
@@ -724,6 +733,8 @@ function update(realDt) {
   player.caughtBulletTime = Math.max(0, player.caughtBulletTime - realDt);
   tryCatchEnemyBullet();
   tryEnemyLegCatch();
+  tryRemoteKickCatch();
+  updatePvpGrab(realDt);
   updateMovement(simDt, realDt);
   if (!world.multiplayer.connected) updateEnemy(simDt, realDt);
   updateProjectiles(simDt);
@@ -735,8 +746,11 @@ function update(realDt) {
 
 function updateCounterPrompt() {
   if (world.multiplayer.connected) {
-    counterPrompt.classList.remove("active", "bullet-catch");
-    counterPrompt.setAttribute("aria-hidden", "true");
+    const kickAvailable = remoteKickCatchAvailable();
+    counterAction.textContent = world.multiplayer.caughtOpponent ? "RELEASE TO THROW" : "GRAB KICK";
+    counterPrompt.classList.remove("bullet-catch");
+    counterPrompt.classList.toggle("active", kickAvailable || world.multiplayer.caughtOpponent);
+    counterPrompt.setAttribute("aria-hidden", String(!kickAvailable && !world.multiplayer.caughtOpponent));
     return;
   }
   const enemy = world.enemy;
@@ -754,6 +768,66 @@ function updateCounterPrompt() {
   counterPrompt.classList.toggle("bullet-catch", bulletAvailable);
   counterPrompt.classList.toggle("active", available);
   counterPrompt.setAttribute("aria-hidden", String(!available));
+}
+
+function remoteKickCatchAvailable() {
+  const remote = world.remotePlayer;
+  return Boolean(
+    world.multiplayer.connected &&
+    remote &&
+    !world.multiplayer.caughtOpponent &&
+    player.bulletTime &&
+    !player.motorcycle &&
+    performance.now() <= world.multiplayer.remoteKickCatchUntil &&
+    horizontalDistance(player.position, remote.position) <= 2.85
+  );
+}
+
+function beginRemoteKickCatch() {
+  if (world.multiplayer.caughtOpponent) return;
+  world.multiplayer.caughtOpponent = true;
+  world.multiplayer.caughtOpponentTime = 0;
+  player.velocity.x *= 0.25;
+  player.velocity.z *= 0.25;
+  window.dispatchEvent(new CustomEvent("matrix-kick-caught"));
+}
+
+function tryRemoteKickCatch() {
+  if (justPressed.has("keyq") && remoteKickCatchAvailable()) beginRemoteKickCatch();
+}
+
+function updatePvpGrab(realDt) {
+  if (player.pvpGrabbed) {
+    player.pvpGrabbedTime = Math.max(0, player.pvpGrabbedTime - realDt);
+    player.velocity.x *= 0.72;
+    player.velocity.z *= 0.72;
+    if (player.pvpGrabbedTime <= 0) player.pvpGrabbed = false;
+  }
+
+  if (!world.multiplayer.caughtOpponent) return;
+  world.multiplayer.caughtOpponentTime += realDt;
+  if (!keys.has("keyq") || world.multiplayer.caughtOpponentTime >= 2.2) {
+    const direction = vec(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+    window.dispatchEvent(new CustomEvent("matrix-kick-throw", { detail: { direction } }));
+    world.multiplayer.caughtOpponent = false;
+    world.multiplayer.caughtOpponentTime = 0;
+  }
+}
+
+function handleIncomingKick(detail) {
+  const remote = world.remotePlayer;
+  const closeEnough = remote && horizontalDistance(player.position, remote.position) <= 3.1;
+  if (player.blocking && player.bulletTime && closeEnough && !player.motorcycle) {
+    beginRemoteKickCatch();
+    return;
+  }
+
+  damagePlayer(detail.amount);
+  if (detail.direction) {
+    player.velocity.x += detail.direction.x * 7;
+    player.velocity.z += detail.direction.z * 7;
+    player.velocity.y = Math.max(player.velocity.y, 2.4);
+  }
 }
 
 function getCatchableEnemyBullet() {
@@ -1070,6 +1144,12 @@ function updateMovement(simDt, realDt) {
   player.kickCooldown = Math.max(0, player.kickCooldown - realDt);
   player.dashFlash = Math.max(0, player.dashFlash - realDt * 3.5);
 
+  if (player.pvpGrabbed) {
+    player.velocity.x *= 0.82;
+    player.velocity.z *= 0.82;
+    return;
+  }
+
   if (player.motorcycle) {
     updateMotorcycleMovement(simDt, realDt);
     return;
@@ -1083,7 +1163,7 @@ function updateMovement(simDt, realDt) {
     if (dot(facing, toEnemy) > 0.25) {
       player.kickHit = true;
       if (world.multiplayer.connected) {
-        window.dispatchEvent(new CustomEvent("matrix-opponent-damage", { detail: { amount: 20, direction: facing } }));
+        window.dispatchEvent(new CustomEvent("matrix-kick-attempt", { detail: { amount: 20, direction: facing } }));
       } else {
         damageEnemy(20);
         world.enemy.velocity = add(world.enemy.velocity, add(mul(facing, 7), vec(0, 2.4, 0)));
